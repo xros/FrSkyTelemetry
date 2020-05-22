@@ -1,6 +1,7 @@
 frksky_telemetry_mkfile_dir:=$(dir $(lastword $(MAKEFILE_LIST)))
-
+SHELL = /bin/bash
 PROJECT_DIRECTORY:=$(shell git rev-parse --show-toplevel)
+SOURCE_DIRECTORY:=$(PROJECT_DIRECTORY)/Firmware/Source
 port:=/dev/ttyUSB0
 upload_speed:=57600
 upload_protocol:=arduino
@@ -19,11 +20,11 @@ avr_core_src_c:=wiring.c \
 	wiring_analog.c wiring_digital.c \
 	wiring_pulse.c \
 	wiring_shift.c WInterrupts.c
-	
+
 
 avr_core_src_cpp:=HardwareSerial.cpp WMath.cpp Print.cpp CDC.cpp
 
-avr_core_obj_dir:=$(PROJECT_DIRECTORY)/core
+avr_core_obj_dir:=$(frksky_telemetry_mkfile_dir)/core
 avr_core_cpp_obj:=$(patsubst %.cpp, $(avr_core_obj_dir)/%.o, $(avr_core_src_cpp))
 avr_core_c_obj:=$(patsubst %.c, $(avr_core_obj_dir)/%.o, $(avr_core_src_c))
 
@@ -49,7 +50,7 @@ AVR_NM:=avr-nm
 AVRDUDE:=avrdude
 AVRDUDE_MCU:=ATmega328p
 AVRDUDE_WRITE_FLASH = -U flash:w:
-AVRDUDE_FLAGS = -q -D -V -F \
+AVRDUDE_FLAGS = -q -D -F \
     -p $(AVRDUDE_MCU) -P $(port) -c $(upload_protocol) \
     -b $(upload_speed) -C $(arduino_dir)hardware/tools/avrdude.conf
 
@@ -59,7 +60,7 @@ $(avr_core_obj_dir)/%.o:
 	------> $*.o"
 	@$(AVR_CC) $(AVR_CPPFLAGS) -MMD \
 	$(avr_core_inc) $(arduino_core_directory)$(filter $*.%, $(avr_core_src_cpp) $(avr_core_src_c)) \
-	-o $@ 
+	-o $@
 
 
 $(arduino_static_library): $(avr_core_c_obj) $(avr_core_cpp_obj)
@@ -67,19 +68,19 @@ $(arduino_static_library): $(avr_core_c_obj) $(avr_core_cpp_obj)
 	$(AVR_AR) rcs $(arduino_static_library) $(avr_core_c_obj) $(avr_core_cpp_obj)
 
 
-frksky_telemetry_src:=$(wildcard $(PROJECT_DIRECTORY)/*.cpp) \
-	$(wildcard $(PROJECT_DIRECTORY)/GCS_Mavlink/*.cpp) \
-	$(wildcard $(PROJECT_DIRECTORY)/SoftwareSerial/*.cpp) \
+frksky_telemetry_src:=$(wildcard $(SOURCE_DIRECTORY)/*.cpp) \
+	$(wildcard $(SOURCE_DIRECTORY)/GCS_Mavlink/*.cpp) \
+	$(wildcard $(SOURCE_DIRECTORY)/SoftwareSerial/*.cpp) \
 
 frksky_telemetry_obj:=$(patsubst %.cpp, %.o, $(frksky_telemetry_src))
 
 %.o: %.cpp
 	@echo "CC $^ ------> $@"
-	
-	$(CC) $(CPPFLAGS) $(ACFLAGS) $(INC_PARAMS) $^ -o $@ 
+
+	$(CC) $(CPPFLAGS) $(ACFLAGS) $(INC_PARAMS) $^ -o $@
 
 clean:
-	find $(PROJECT_DIRECTORY) -type f -name "*.d" -o -name "*.o" -o -name "*.a"  \
+	find $(SOURCE_DIRECTORY) -type f -name "*.d" -o -name "*.o" -o -name "*.a"  \
 		-o -name "*.hex" -o -name "*.zip" | xargs rm -f
 
 /tmp/frsky_telemetry.elf: CC:=$(AVR_CC)
@@ -90,18 +91,25 @@ clean:
 	$(CC) $(frksky_telemetry_obj) \
 		$(frksky_telemetry_softwareserial_obj) \
 		$(AVR_LFLAGS) -L$(avr_core_obj_dir) -l$(arduino_static_library_name) \
-		-o $@ 
+		-o $@
 
 #	@$(PRETTY_PRINT)
 
 frsky_telemetry.hex: /tmp/frsky_telemetry.elf
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
-	
+
 upload_frsky_telemetry: frsky_telemetry.hex
+	md5sum $<
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH)$<:i
 
-frsky_telemetry.zip: frsky_telemetry.hex
-	git archive -o frsky_telemetry.zip -9 HEAD
+manual:
+	pushd Manual/; pdflatex Manual.tex; popd
+	mv Manual/Manual.pdf $(SOURCE_DIRECTORY)/"Quick Start Guide.pdf"
 
+frsky_telemetry.zip: manual frsky_telemetry.hex
+	mv frsky_telemetry.hex $(PROJECT_DIRECTORY)/Firmware
+	pushd $(PROJECT_DIRECTORY);	git archive -o frsky_telemetry.zip -9 HEAD;	zip -g frsky_telemetry.zip Firmware/frsky_telemetry.hex;popd
+	mv $(PROJECT_DIRECTORY)/frsky_telemetry.zip $(SOURCE_DIRECTORY)
+	zip -g frsky_telemetry.zip "Quick Start Guide.pdf"
 
 all: upload_frsky_telemetry

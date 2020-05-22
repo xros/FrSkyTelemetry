@@ -13,14 +13,13 @@
 --
 --  A copy of the GNU General Public License is available at <http://www.gnu.org/licenses/>.
 
-initialize()
-            
----------------------------------------------------------------------------------------------------      
-			
+
+--------------------------------------------------------------------------------------------------
+
 local function drawTopPanel()
     lcd.drawFilledRectangle(0, 0, 212, 9, 0)
-  
-    local flightModeNumber = getValue("fuel") + 1
+
+    local flightModeNumber = getValue("Fuel") + 1
     if flightModeNumber < 1 or flightModeNumber > 17 then
         flightModeNumber = 13
     end
@@ -30,12 +29,12 @@ local function drawTopPanel()
     lcd.drawTimer(lcd.getLastPos() + 10, 1, model.getTimer(0).value, INVERS)
 
     lcd.drawText(lcd.getLastPos() + 10, 1, "TX:", INVERS)
-    lcd.drawNumber(lcd.getLastPos() + 16, 1, getValue("tx-voltage")*10, 0+PREC1+INVERS)
+    lcd.drawNumber(lcd.getLastPos() + 16, 1, getValue("tx-voltage") *10, 0+PREC1+INVERS+RIGHT)
 
-    lcd.drawText(lcd.getLastPos(), 1, "v", INVERS)
+    lcd.drawText(lcd.getLastPos(), 1, "V", INVERS)
 
-    lcd.drawText(lcd.getLastPos() + 12, 1, "rssi:", INVERS)
-    lcd.drawNumber(lcd.getLastPos() + 10, 1, getValue("rssi"), 0+INVERS)
+    lcd.drawText(lcd.getLastPos() + 12, 1, "RSSI:", INVERS)
+    lcd.drawNumber(lcd.getLastPos() + 10, 1, getValue("RSSI"), 0+INVERS+RIGHT)
 end
 
 local function drawBottomPanel()
@@ -43,8 +42,8 @@ local function drawBottomPanel()
     lcd.drawFilledRectangle(0, 54, 212, 63, 0)
     lcd.drawText(2, 55, footerMessage, INVERS)
 end
-    
-local function background() 
+
+local function background()
 end
 
 local function run(event)
@@ -52,18 +51,28 @@ local function run(event)
     if loopStartTime > (lastTime + 100) then
         checkForNewMessage()
         lastTime = loopStartTime
-    end 
+    end
     checkForNewMessage()
-    
+
     lcd.clear()
     drawTopPanel()
     local i
     local row = 1
     for i = messageFirst, messageNext - 1, 1 do
---            lcd.drawText(1, row * 10 + 2, "abc " .. i .. " " .. messageFirst .. " " .. messageNext, 0)
-        lcd.drawText(1, row * 10 + 2, messageArray[(i % MESSAGEBUFFERSIZE) + 1], 0)
-        row = row + 1
+        lcd.drawText(1, row * 10, messageArray[(i % MESSAGEBUFFERSIZE) + 1], 0)
+        row = (row % 4) + 1
     end
+    local coords =  getValue("GPS")
+    if (type(coords) == "table") then
+      lcd.drawText(1, 55, "Latitude ", INVERS)
+      lcd.drawText(lcd.getLastPos(), 55, coords["lat"], INVERS)
+      lcd.drawText(lcd.getLastPos(), 55, "Longitude ", INVERS)
+      lcd.drawText(lcd.getLastPos(), 55, coords["lon"], INVERS)
+    else
+      lcd.drawText(1, 55, "No Longitude Sensor ", INVERS)
+      lcd.drawText(lcd.getLastPos() , 55, "No Latitude Sensor", INVERS)
+    end
+
 end
 
 return {run=run, background=background}
